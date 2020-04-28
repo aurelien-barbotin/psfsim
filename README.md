@@ -1,7 +1,7 @@
 psfsim
 ======
 
-Code to simulate PSFs (STED PSFs in particular) in a high NA envinronment.
+Code to simulate PSFs (STED PSFs in particular) in a high NA environment.
 
 Install
 -------

@@ -25,6 +25,8 @@ import pkg_resources
 #Axial 721 nm
 rz = RZern(8)
 
+FILE_SIGMAS = pkg_resources.resource_filename('psfsim', 'data/r1_50pts.npy')
+
 def distance_map(image,xc=0,yc=0):
     u,v=image.shape
     #Meshgrid usses cartesian indexing, invert of normal matrix indexing
