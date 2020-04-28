@@ -1,0 +1,23 @@
+Metadata-Version: 1.1
+Name: psfsim
+Version: 1.0
+Summary: Simulation of high NA PSFs
+Home-page: UNKNOWN
+Author: Aurélien Barbotin
+Author-email: aurelien.barbotin@dtc.ox.ac.uk
+License: to be defined
+Description: psfsim
+        ======
+        
+        Code to simulate PSFs (STED PSFs in particular) in a high NA envinronment.
+        
+        Install
+        -------
+        
+            $ pip install -e path_to_psfsim/
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3

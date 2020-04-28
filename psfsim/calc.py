@@ -11,38 +11,19 @@ import matplotlib.pyplot as plt
 import time
 import os
 
-from aotools.zernike.czernike import RZern
-from aotools.slm.slm import SLM
-from aotools.ext.misc import aberration_names
-from aotools.ext.paths import datapath
+from zernike.czernike import RZern
+from slm.slm import SLM
 
 from scipy.signal import convolve
 from scipy.optimize import minimize_scalar
 from scipy import stats
 
+import pkg_resources
+
 #Theoretical FWHM: 275nm
 #Axial 0.89*lambda/(n-sqrt(n**2-NA**2))
 #Axial 721 nm
-"""LAMBDA=755
-NA=1.4
-optical_n=1.518
-alpha = np.arcsin(NA/optical_n)
-
-axres = 0.89*LAMBDA/(optical_n-np.sqrt(optical_n**2-NA**2))
-lateralres = 0.51*LAMBDA/NA
-
-CONSTANT_k = optical_n*2*np.pi/LAMBDA"""
 rz = RZern(8)
-
-"""def phi_pos(x,y,z,theta,phi):
-    #xy
-    phase= CONSTANT_k*(x*np.sin(theta)*np.cos(phi)+
-                       y*np.sin(theta)*np.sin(phi)+
-                       z*np.cos(theta))
-    #z
-    last_terms = np.sin(theta)*np.sqrt(np.cos(theta))
-    phase = np.exp(1j*phase)*last_terms
-    return phase"""
 
 def distance_map(image,xc=0,yc=0):
     u,v=image.shape
@@ -113,15 +94,23 @@ class Simulator():
         phase = np.exp(1j*phase)*sth*np.sqrt(cth)
         return phase
     
-    def phi_th(self,theta,phi,r1=1/np.sqrt(2)):
+    def phi_th(self,theta,phi):
         """Top hat phase mask in spherical coordinates
-        !!!!!!WARNING!!! Now only uses self.r1"""
+        """
         rho = self.optical_n*np.sin(theta)/self.NA
         return (rho>=self.r1).astype(np.float)*np.pi
 
     def lineprofile(self,n,res,axis=0,**kwargs):
-        #size = (n-1)*res
-        #xvals= np.linspace(-size/2,size/2,n)
+        """Calculates intensity profile along a given axis. 
+        Parameters:
+            n (int): number of datapoints to compute
+            res (float): the distance between points in nm
+            axis (int): optional, axis along which data is to be calculated.
+                0: x, 1:y, 2: z
+            kwargs (dict): supp arguments, such as aberrations. See intensity
+        Returns:
+            ndarray: (x,y) datapoints of lineprofile
+            """
         xvals = np.arange(0,res*n,res)-res*(n//2)
         out = np.zeros(n)
         
@@ -131,7 +120,7 @@ class Simulator():
         
         for i,x in enumerate(xvals):
             out[i]=self.intensity(*axes*x,**kwargs)
-        return out,xvals
+        return np.array([xvals,out])
     
     def amplitude_2d(self):
         npts = self.npts
@@ -200,7 +189,7 @@ class Simulator():
             phs = phs.reshape(-1)
             
         if self.th_on:
-            phase = self.phi_pos(x,y,z,ths,phs) * np.exp(1j* self.phi_th(ths,phs,r1=self.r1))
+            phase = self.phi_pos(x,y,z,ths,phs) * np.exp(1j* self.phi_th(ths,phs))
         else:
             phase = self.phi_pos(x,y,z,ths,phs)
         if self.helix_on:
@@ -395,11 +384,11 @@ class Simulator():
             
             plt.axvline(mode1_res[-1])
             plt.axvline(mode2_res[-1])
-            plt.legend([aberration_names[mode1],aberration_names[mode2]])
+            plt.legend([mode1, mode2])
         slope1, intercept1, r_value1, p_value1, std_err1 = stats.linregress(abrange,np.asarray(mode1_res))
         slope2, intercept2, r_value2, p_value2, std_err2 = stats.linregress(abrange,np.asarray(mode2_res))
         
-        print("ratio",aberration_names[mode2],"/",aberration_names[mode1],slope2/slope1)
+        print("ratio",mode2,"/",mode1,slope2/slope1)
         print("ratio2:",slope2)
         print("slope 1",slope1,"nm/rad")
         print("slope 2",slope2,"nm/rad")
@@ -477,10 +466,12 @@ def e_eq2(theta,phi):
     return out
      
 def find_sigma_for_r(r1):
-    #folder = r"C:\Users\Aurelien\Documents\Data\Simulations\mask_inner_radius"
-    folder = datapath+'/Simulations/mask_inner_radius'
-    file = "r1_50pts.npy"
-    out = np.load(os.path.join(folder,file))
+    """Returns the standard deviation of Gaussian illumination required to have 
+    a specific z-STED inner radius"""
+    
+    file = pkg_resources.resource_filename('psfsim', 'data/r1_50pts.npy')
+    print(file)
+    out = np.load(os.path.join(file,file))
     sigmas = out[:,0]
     r1s=out[:,1]
     
@@ -494,7 +485,6 @@ def find_sigma_for_r(r1):
     dist = np.abs(diffs[w1]-diffs[w2])
     d1=np.abs(r1-r1s[w1])
     d2=np.abs(r1-r1s[w2])
-    #assert(np.isclose(d1+d2,dist))
     
     v1,v2 = r1s[w1],r1s[w2]
     v =(v1 *(dist-d1) +v2*(dist-d2) )/dist
@@ -530,108 +520,6 @@ def FWHM(line):
     fwhm = h2-h1
     return fwhm,h1,h2
 
-"""Chirp z-Transform.
-As described in
-Rabiner, L.R., R.W. Schafer and C.M. Rader.
-The Chirp z-Transform Algorithm.
-IEEE Transactions on Audio and Electroacoustics, AU-17(2):86--92, 1969
-"""
-
-def chirpz(x,A,W,M):
-    """Compute the chirp z-transform.
-    The discrete z-transform,
-    X(z) = \sum_{n=0}^{N-1} x_n z^{-n}
-    is calculated at M points,
-    z_k = AW^-k, k = 0,1,...,M-1
-    for A and W complex, which gives
-    X(z_k) = \sum_{n=0}^{N-1} x_n z_k^{-n}    
-    """
-    A = np.complex(A)
-    W = np.complex(W)
-    if np.issubdtype(np.complex,x.dtype) or np.issubdtype(np.float,x.dtype):
-        dtype = x.dtype
-    else:
-        dtype = float
-
-    x = np.asarray(x,dtype=np.complex)
-    
-    N = x.size
-    L = int(2**np.ceil(np.log2(M+N-1)))
-
-    n = np.arange(N,dtype=float)
-    y = np.power(A,-n) * np.power(W,n**2 / 2.) * x 
-    Y = np.fft.fft(y,L)
-
-    v = np.zeros(L,dtype=np.complex)
-    v[:M] = np.power(W,-n[:M]**2/2.)
-    v[L-N+1:] = np.power(W,-n[N-1:0:-1]**2/2.)
-    V = np.fft.fft(v)
-    
-    g = np.fft.ifft(V*Y)[:M]
-    k = np.arange(M)
-    g *= np.power(W,k**2 / 2.)
-
-    return g
-
-def bluestein():
-    import time
-    #from aotools.ext.pretrieval import distance_map
-    plt.close("all")
-    N = 301
-    intensity = np.zeros(N)
-    nN = 100
-    intensity[nN:-nN] = 1
-    phase = intensity.copy()*np.pi/2
-    phase[N//2:]*=-1
-    out = intensity *np.exp( 1j * phase)
-   
-    padsize= 5*N
-    
-    #out=np.pad(out,padsize,mode="constant")
-    
-    t1 = time.time()
-    
-    N=out.size
-    W = np.arange(0,out.size)
-    W = np.exp(1j*np.pi*W**2/N)
-    print(W.shape)
-    Wc = np.conj(W)
-    #wq = np.concatenate((np.flip(Wc,0),W[1:]))
-    wq=W
-    x = out*Wc
-    #W=W[:N//6]
-    
-    cv = np.convolve(x,wq)
-    u=cv.shape[0]//2
-    N=wq.size
-    cv = cv[u-N//2:u+N//2+N%2]
-    out2 = wq*cv
-    t2 = time.time()
-    print("fft")
-    fft = np.fft.fftshift(np.fft.fft(out))
-    print("reff")
-    t3 = time.time()
-    print("Berf",t2-t1,"FFt:",t3-t2)
-    plt.figure()
-    plt.plot(np.abs(fft))
-    plt.plot(np.abs(out2))
-    plt.legend(["FFt","chirped"])
-
-def test_slm_mode_integral():
-    slm = SLM()
-    print("1/")
-    aberration = np.zeros(15)
-    aberration[0]=1
-    slm.set_aberration(aberration)
-    print("aa",slm.aberration)
-    slm.make_tilt()
-    print("2/")
-    slm.make_phi()
-    print("3/")
-    phi = slm.phi
-    plt.figure()
-    plt.imshow(phi)
-    1/0
     
 def attenuation(exc,depl,P,delta=0):
     """STED attenuation formula. 
@@ -711,20 +599,5 @@ if __name__=='__main__':
     plt.figure()
     plt.imshow(xz2)
     
-    1/0
-    #depletion.compute_disp_free(r1=0.63)
-    aberration = np.zeros(15)
-    aber = [0,0.1,0.2,0.3,0.4,0.5]
-    results=[]
-    for ab in aber:
-        aberration[7] = ab
-        xy=depletion.xyprof(npts,res,aberration=aberration)
-        results.append(xy)
-    from aotools.ext.graphics import plot_n
-    plot_n(results)
-    plt.figure()
-    plt.imshow(xy)
-    for i in range(len(aber)):
-        np.save("5nmpsize_doughnut_coma7_"+str(aber[i]),results[i])
-    #mode1res,modes2res = depletion.compute_disp_free()
+
     
