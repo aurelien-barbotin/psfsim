@@ -5,8 +5,7 @@ Created on Tue Feb 12 12:39:13 2019
 
 @author: aurelien
 
-pyfcs is a FCS data analysis package. It is used to fit STED-FCS data with custom
-fitters
+psfsim is a package used to simulate PSFs using vectorial diffraction theory
 """
 
 

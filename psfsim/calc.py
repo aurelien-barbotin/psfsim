@@ -6,14 +6,11 @@ Created on Tue Jan 30 17:13:19 2018
 """
 import numpy as np
 
-from scipy.integrate import nquad
 import matplotlib.pyplot as plt
 import time
 import os
 
-from zernike.czernike import RZern
-from slm.slm import SLM
-
+from zernike import RZern
 from scipy.signal import convolve
 from scipy.optimize import minimize_scalar
 from scipy import stats
@@ -61,7 +58,11 @@ class Simulator():
         self.cartesian_sampling = cartesian_sampling
         
     def A(self,theta):
-        rho = self.optical_n*np.sin(theta)/self.NA
+        #rho = self.optical_n*np.sin(theta)/self.NA
+        
+        rho = self.theta2rho(theta)
+        assert(np.all(rho>=0))
+        assert(np.all(rho<=1))
         if self.sigma>1000:
             return np.ones_like(theta)
         a = np.exp(-rho**2/(2*self.sigma**2))
@@ -70,6 +71,17 @@ class Simulator():
     def phi_high_na_defocus(self,theta,phi):
         defoc = np.cos(theta)/(1-self.NA/self.n)
         return defoc
+    
+    def theta2rho(self,theta):
+        """Converts angle coordinates in rho"""
+        assert(np.all(theta>=0))
+        assert(np.all(theta<=np.pi/2) )
+        # rhp = tan(theta)/tan(anglemax)
+        t1 = self.NA/self.optical_n
+        tanalpha = t1/np.sqrt(1-t1**2)
+        # rho = np.tan(theta)/tanalpha
+        rho = self.optical_n*np.sin(theta)/self.NA
+        return rho
         
     def phi_ab(self,theta,phi,k):
         """Returns the induced aberration function. 
@@ -77,7 +89,8 @@ class Simulator():
             theta: float, angle
             phi: float, angle
             k: int, zernike mode index"""
-        rho = self.optical_n*np.sin(theta)/self.NA #Conversion
+        # rho = self.optical_n*np.sin(theta)/self.NA #Conversion
+        rho = self.theta2rho(theta)
         radial = rz.radial(k, rho)
         ang = rz.angular(k, phi)
     
@@ -99,7 +112,8 @@ class Simulator():
     def phi_th(self,theta,phi):
         """Top hat phase mask in spherical coordinates
         """
-        rho = self.optical_n*np.sin(theta)/self.NA
+        #rho = self.optical_n*np.sin(theta)/self.NA
+        rho = self.theta2rho(theta)
         return (rho>=self.r1).astype(np.float)*np.pi
 
     def lineprofile(self,n,res,axis=0,**kwargs):
@@ -472,7 +486,6 @@ def find_sigma_for_r(r1):
     a specific z-STED inner radius"""
     
     file = pkg_resources.resource_filename('psfsim', 'data/r1_50pts.npy')
-    print(file)
     out = np.load(os.path.join(file,file))
     sigmas = out[:,0]
     r1s=out[:,1]
