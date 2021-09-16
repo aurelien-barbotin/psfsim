@@ -31,6 +31,6 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     setup_requires=['numpy'],
-    install_requires=['numpy'],
+    install_requires=['numpy','matplotlib','zernike','h5py','scipy'],
     package_data = {'psfsim': ['data/*.npy']}
 )
