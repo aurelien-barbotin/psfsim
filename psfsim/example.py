@@ -28,6 +28,7 @@ def example1():
     xz1 = depletion.xzprof(50,100,40)
     plt.figure()
     plt.imshow(xz1)
+    plt.show()
     return xz1
 
 def example2():
@@ -43,6 +44,7 @@ def example2():
     xz2 =  excitation.xzprof(50,80,40)
     plt.figure()
     plt.imshow(xz2)
+    plt.show()
     return xz2
 
 def example3():
@@ -66,6 +68,7 @@ def example3():
     
     plt.figure()
     plt.imshow(xz1)
+    plt.show()
     return xz1
 
 xz = example3()
